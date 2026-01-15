@@ -136,6 +136,14 @@ for _, r in df_curr.iterrows():
     ):
         curr = r
         break
+# =========================
+# SALVA RESULTADO NO SESSION_STATE
+# =========================
+st.session_state["prev"] = prev
+st.session_state["curr"] = curr
+st.session_state["entidade"] = entidade
+st.session_state["ex_prev"] = ex_prev
+st.session_state["ex_curr"] = ex_curr
 
 # =========================
 # RESULTADO (POR LINHA)
@@ -248,3 +256,4 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
         file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
         mime="application/pdf"
     )
+
