@@ -95,8 +95,8 @@ entidades = sorted({
 })
 
 entidade = st.selectbox("Entidade", entidades)
-anos = sorted(data.keys())
 
+anos = sorted(data.keys())
 ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2))
 ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1)
 
@@ -138,28 +138,79 @@ for _, r in df_curr.iterrows():
         break
 
 # =========================
-# RESULTADO CONTROLADO
+# RESULTADO (POR LINHA)
 # =========================
-def montar_resultado(row, ano):
-    return {
-        "Exercício": ano,
-        "Número da despesa": row["Número da despesa"],
-        "Entidade": entidade,
-        "Número da função": row["Número da função"],
-        "Número do programa": row["Número do programa"],
-        "Número da ação": row["Número da ação"],
-        "Descrição da ação": row["Descrição da ação"],
-        "Natureza de Despesa": row["Natureza de Despesa"],
-        "Descrição da natureza de despesa": row["Descrição da natureza de despesa"],
-    }
+def mostrar_resultado(row, ano):
+    st.markdown(f"**Exercício:** {ano}")
+    st.markdown(f"**Número da despesa:** {row['Número da despesa']}")
+    st.markdown(f"**Entidade:** {entidade}")
+    st.markdown(f"**Número da função:** {row['Número da função']}")
+    st.markdown(f"**Número do programa:** {row['Número do programa']}")
+    st.markdown(f"**Número da ação:** {row['Número da ação']}")
+    st.markdown(f"**Descrição da ação:** {row['Descrição da ação']}")
+    st.markdown(f"**Natureza de Despesa:** {row['Natureza de Despesa']}")
+    st.markdown(f"**Descrição da natureza de despesa:** {row['Descrição da natureza de despesa']}")
 
 st.subheader("Resultado da Comparação")
 
 st.markdown("### Exercício anterior")
-st.table(pd.DataFrame([montar_resultado(prev, ex_prev)]))
+mostrar_resultado(prev, ex_prev)
 
 if curr is not None:
     st.markdown("### Exercício atual")
-    st.table(pd.DataFrame([montar_resultado(curr, ex_curr)]))
+    mostrar_resultado(curr, ex_curr)
 else:
     st.warning("Não existe despesa correspondente no exercício atual.")
+
+# =========================
+# PDF
+# =========================
+if curr is not None:
+    gerar_pdf = st.button("📄 Gerar PDF")
+
+    if gerar_pdf:
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        y = height - 50
+
+        c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(width / 2, y, "RETIFICAÇÃO / RATIFICAÇÃO DE DESPESA")
+        y -= 40
+
+        c.setFont("Helvetica", 11)
+        c.drawString(50, y, f"Entidade: {entidade}")
+        y -= 20
+
+        c.drawString(50, y, f"Despesa anterior: {prev['Número da despesa']} - Exercício {ex_prev}")
+        y -= 20
+
+        y = draw_paragraph(
+            c,
+            f"{prev['Descrição da ação']}<br/>{prev['Descrição da natureza de despesa']}",
+            50, y, width - 100
+        )
+
+        y -= 30
+        c.drawString(50, y, f"Despesa atual: {curr['Número da despesa']} - Exercício {ex_curr}")
+        y -= 20
+
+        y = draw_paragraph(
+            c,
+            f"{curr['Descrição da ação']}<br/>{curr['Descrição da natureza de despesa']}",
+            50, y, width - 100
+        )
+
+        y -= 40
+        c.drawCentredString(width / 2, y, "Diretoria de Planejamento Orçamentário")
+
+        c.showPage()
+        c.save()
+        buffer.seek(0)
+
+        st.download_button(
+            "⬇️ Baixar PDF",
+            buffer,
+            file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
+            mime="application/pdf"
+        )
