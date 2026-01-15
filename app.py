@@ -199,26 +199,33 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
     # =========================
     # LOGO (ACIMA DO TÍTULO)
     # =========================
-    logo_path = os.path.join("static", "logo_secretaria.png")
+    from PIL import Image
+
+logo_path = os.path.join("static", "logo_secretaria.png")
 
 if os.path.exists(logo_path):
     img = Image.open(logo_path)
-    img_width, img_height = img.size
+    img_w, img_h = img.size
 
-    largura_logo = 300  # ajuste aqui (250–350 costuma ficar ótimo)
-    altura_logo = largura_logo * img_height / img_width
+    largura_logo = 200  # <<< AUMENTE AQUI (ex: 180, 220, 250)
+    proporcao = img_h / img_w
+    altura_logo = largura_logo * proporcao
+
+    x_logo = (width - largura_logo) / 2
+    y_logo = height - altura_logo - 30
 
     c.drawImage(
         logo_path,
-        x=(width - largura_logo) / 2,
-        y=height - altura_logo - 40,
+        x=x_logo,
+        y=y_logo,
         width=largura_logo,
         height=altura_logo,
-        mask="auto",
-        preserveAspectRatio=True
+        preserveAspectRatio=True,
+        mask="auto"
     )
 
-    y = height - altura_logo - 70
+    y = y_logo - 20
+
 
     # =========================
     # TÍTULO
@@ -346,4 +353,5 @@ if os.path.exists(logo_path):
         file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
         mime="application/pdf"
     )
+
 
