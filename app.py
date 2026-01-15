@@ -8,6 +8,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.utils import ImageReader
+
 
 # =========================
 # CONFIGURAÇÃO
@@ -313,4 +315,5 @@ if os.path.exists(logo_path):
         file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
         mime="application/pdf"
     )
+
 
