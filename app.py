@@ -211,8 +211,8 @@ if os.path.exists(logo_path):
     proporcao = img_h / img_w
     altura_logo = largura_logo * proporcao
 
-    x_logo = (width - largura_logo) / 2
-    y_logo = height - altura_logo - 30
+    x_logo = (width - largura_logo) / 200
+    y_logo = height - altura_logo - 50
 
     c.drawImage(
         logo_path,
@@ -353,5 +353,6 @@ if os.path.exists(logo_path):
         file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
         mime="application/pdf"
     )
+
 
 
