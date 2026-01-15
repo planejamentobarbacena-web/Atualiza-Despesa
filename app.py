@@ -1,121 +1,222 @@
 import streamlit as st
 import pandas as pd
+import os
+import re
 from io import BytesIO
-from reportlab.pdfgen import canvas
+
 from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.platypus import Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
 
-st.set_page_config(page_title="Comparação de Despesa", layout="centered")
+# =========================
+# CONFIGURAÇÃO
+# =========================
+st.set_page_config(
+    page_title="Retificação / Ratificação de Despesa",
+    layout="centered"
+)
 
-st.title("Consulta de Despesa")
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
 
-# =========================================================
-# FUNÇÃO – MONTA TEXTO DO BLOCO
-# =========================================================
-def montar_bloco(dados, titulo):
-    st.subheader(titulo)
-    st.write(f"**Exercício:** {dados['exercicio']}")
-    st.write(f"**Número da despesa:** {dados['numero_despesa']}")
-    st.write(f"**Entidade:** {dados['entidade']}")
+styles = getSampleStyleSheet()
+
+# =========================
+# FUNÇÕES AUXILIARES
+# =========================
+def normalizar(txt):
+    return re.sub(r"\s+", " ", str(txt).strip().lower())
+
+def reduzir_natureza(codigo):
+    nums = re.sub(r"\D", "", str(codigo))
+    if len(nums) < 6:
+        return codigo
+    return f"{nums[0]}.{nums[1]}.{nums[2:4]}.{nums[4:6]}"
+
+def draw_paragraph(c, text, x, y, width):
+    style = styles["Normal"]
+    style.fontName = "Helvetica"
+    style.fontSize = 11
+    style.leading = 14
+    p = Paragraph(text.replace("\n", "<br/>"), style)
+    _, h = p.wrap(width, 1000)
+    p.drawOn(c, x, y - h)
+    return y - h
+
+# =========================
+# LEITURA DOS DADOS
+# =========================
+@st.cache_data(show_spinner=False)
+def carregar_dados():
+    data = {}
+
+    for fname in os.listdir(DATA_DIR):
+        if not fname.lower().endswith((".xlsx", ".xls", ".csv")):
+            continue
+
+        match = re.search(r"(20\d{2})", fname)
+        if not match:
+            continue
+
+        ano = match.group(1)
+        path = os.path.join(DATA_DIR, fname)
+
+        try:
+            if fname.endswith(".csv"):
+                df = pd.read_csv(path, dtype=str)
+            else:
+                df = pd.read_excel(path, dtype=str)
+        except:
+            continue
+
+        df = df.fillna("")
+        data[ano] = df
+
+    return data
+
+# =========================
+# INTERFACE
+# =========================
+st.title("Retificação / Ratificação de Despesa")
+
+data = carregar_dados()
+
+if not data:
+    st.warning("Nenhum arquivo encontrado na pasta /data.")
+    st.stop()
+
+# --- ENTIDADES (COLUNA A)
+entidades = sorted({
+    str(v).strip()
+    for df in data.values()
+    for v in df.iloc[:, 0].dropna().unique()
+    if str(v).strip()
+})
+
+entidade = st.selectbox("Entidade", entidades)
+
+anos = sorted(data.keys())
+ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2))
+ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1)
+
+numero = st.text_input("Número da despesa")
+
+consultar = st.button("🔍 Consultar")
+
+if not consultar:
+    st.stop()
+
+# =========================
+# BUSCA
+# =========================
+df_prev = data[ex_prev].copy()
+df_curr = data[ex_curr].copy()
+
+df_prev = df_prev[df_prev.iloc[:, 0].str.strip() == entidade]
+df_curr = df_curr[df_curr.iloc[:, 0].str.strip() == entidade]
+
+def localizar_por_numero(df, numero):
+    for _, r in df.iterrows():
+        if normalizar(r["Número da despesa"]) == normalizar(numero):
+            return r
+    return None
+
+prev = localizar_por_numero(df_prev, numero)
+
+if prev is None:
+    st.error("Despesa não encontrada no exercício anterior.")
+    st.stop()
+
+curr = None
+for _, r in df_curr.iterrows():
+    if (
+        normalizar(r["Descrição da ação"]) == normalizar(prev["Descrição da ação"])
+        and normalizar(r["Descrição da natureza de despesa"]) == normalizar(prev["Descrição da natureza de despesa"])
+    ):
+        curr = r
+        break
+
+# =========================
+# RESULTADO (POR LINHA)
+# =========================
+def mostrar_resultado_simples(row, ano):
+    st.markdown(f"### Exercício {ano}")
+    st.markdown(f"**Exercício:** {ano}")
+    st.markdown(f"**Número da despesa:** {row['Número da despesa']}")
+    st.markdown(f"**Entidade:** {entidade}")
 
     st.markdown(
         f"""
-{dados['funcao']} · {dados['subfuncao']} · {dados['programa']} · {dados['acao']} – {dados['descricao_acao']}  
-{dados['natureza']} – {dados['descricao_natureza']}
+{row['Número da função']} . {row['Número do programa']}  
+{row['Número da ação']} - {row['Descrição da ação']}  
+{row['Natureza de Despesa']} - {row['Descrição da natureza de despesa']}
 """
     )
 
-# =========================================================
-# FORMULÁRIO
-# =========================================================
-with st.form("consulta"):
-    numero_despesa = st.text_input("Número da despesa")
-    consultar = st.form_submit_button("Consultar")
+st.subheader("Resultado da Comparação")
 
-# =========================================================
-# RESULTADO
-# =========================================================
-if consultar and numero_despesa:
+st.markdown("#### Exercício anterior")
+mostrar_resultado_simples(prev, ex_prev)
 
-    # 🔹 EXEMPLO (depois você liga ao CSV real)
-    exercicio_anterior = {
-        "exercicio": "2023",
-        "numero_despesa": numero_despesa,
-        "entidade": "Prefeitura Municipal",
-        "funcao": "04",
-        "subfuncao": "122",
-        "programa": "0001",
-        "acao": "2001",
-        "descricao_acao": "Manutenção das Atividades Administrativas",
-        "natureza": "3.3.90.39",
-        "descricao_natureza": "Outros Serviços de Terceiros – PJ"
-    }
+if curr is not None:
+    st.markdown("---")
+    st.markdown("#### Exercício atual")
+    mostrar_resultado_simples(curr, ex_curr)
+else:
+    st.warning("Não existe despesa correspondente no exercício atual.")
 
-    exercicio_atual = {
-        "exercicio": "2024",
-        "numero_despesa": numero_despesa,
-        "entidade": "Prefeitura Municipal",
-        "funcao": "04",
-        "subfuncao": "122",
-        "programa": "0001",
-        "acao": "2001",
-        "descricao_acao": "Manutenção das Atividades Administrativas",
-        "natureza": "3.3.90.39",
-        "descricao_natureza": "Outros Serviços de Terceiros – PJ"
-    }
+# =========================
+# PDF
+# =========================
+if curr is not None:
+    gerar_pdf = st.button("📄 Gerar PDF")
 
-    st.divider()
-    montar_bloco(exercicio_anterior, "Exercício anterior")
-
-    st.divider()
-    montar_bloco(exercicio_atual, "Exercício atual")
-
-    # =====================================================
-    # PDF
-    # =====================================================
-    def gerar_pdf():
+    if gerar_pdf:
         buffer = BytesIO()
-        pdf = canvas.Canvas(buffer, pagesize=A4)
-        largura, altura = A4
-        y = altura - 50
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        y = height - 50
 
-        pdf.setFont("Helvetica", 10)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(width / 2, y, "RETIFICAÇÃO / RATIFICAÇÃO DE DESPESA")
+        y -= 40
 
-        for titulo, dados in [
-            ("Exercício anterior", exercicio_anterior),
-            ("Exercício atual", exercicio_atual)
-        ]:
-            pdf.drawString(40, y, titulo)
-            y -= 18
+        c.setFont("Helvetica", 11)
+        c.drawString(50, y, f"Entidade: {entidade}")
+        y -= 20
 
-            pdf.drawString(40, y, f"Exercício: {dados['exercicio']}")
-            y -= 14
-            pdf.drawString(40, y, f"Número da despesa: {dados['numero_despesa']}")
-            y -= 14
-            pdf.drawString(40, y, f"Entidade: {dados['entidade']}")
-            y -= 18
+        c.drawString(50, y, f"Despesa anterior: {prev['Número da despesa']} - Exercício {ex_prev}")
+        y -= 20
 
-            linha1 = (
-                f"{dados['funcao']} · {dados['subfuncao']} · "
-                f"{dados['programa']} · {dados['acao']} – {dados['descricao_acao']}"
-            )
-            linha2 = (
-                f"{dados['natureza']} – {dados['descricao_natureza']}"
-            )
+        y = draw_paragraph(
+            c,
+            f"{prev['Descrição da ação']}<br/>{prev['Descrição da natureza de despesa']}",
+            50, y, width - 100
+        )
 
-            pdf.drawString(40, y, linha1)
-            y -= 14
-            pdf.drawString(40, y, linha2)
-            y -= 30
+        y -= 30
+        c.drawString(50, y, f"Despesa atual: {curr['Número da despesa']} - Exercício {ex_curr}")
+        y -= 20
 
-        pdf.save()
+        y = draw_paragraph(
+            c,
+            f"{curr['Descrição da ação']}<br/>{curr['Descrição da natureza de despesa']}",
+            50, y, width - 100
+        )
+
+        y -= 40
+        c.drawCentredString(width / 2, y, "Diretoria de Planejamento Orçamentário")
+
+        c.showPage()
+        c.save()
         buffer.seek(0)
-        return buffer
 
-    pdf_buffer = gerar_pdf()
+        st.download_button(
+            ⬇️ Baixar PDF",
+            buffer,
+            file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
+            mime="application/pdf"
+        )
 
-    st.download_button(
-        label="📄 Gerar PDF",
-        data=pdf_buffer,
-        file_name="comparacao_despesa.pdf",
-        mime="application/pdf"
-    )
+
