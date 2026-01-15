@@ -191,6 +191,19 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
     margem_x = 50
     largura_texto = width - 2 * margem_x
 
+    logo_path = os.path.join("static", "logo_secretaria.png")
+
+if os.path.exists(logo_path):
+    logo = ImageReader(logo_path)
+    c.drawImage(
+        logo,
+        x=40,                  # margem esquerda
+        y=height - 110,        # topo da página
+        width=80,
+        height=80,
+        mask='auto'
+    )
+
     # ===== TÍTULO =====
     c.setFont("Helvetica-Bold", 14)
     c.drawCentredString(width / 2, y, "RETIFICAÇÃO – RATIFICAÇÃO")
@@ -300,3 +313,4 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
         file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
         mime="application/pdf"
     )
+
