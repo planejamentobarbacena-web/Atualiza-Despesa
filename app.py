@@ -140,27 +140,31 @@ for _, r in df_curr.iterrows():
 # =========================
 # RESULTADO (POR LINHA)
 # =========================
-def mostrar_resultado(row, ano):
+def mostrar_resultado_simples(row, ano):
+    st.markdown(f"### Exercício {ano}")
     st.markdown(f"**Exercício:** {ano}")
     st.markdown(f"**Número da despesa:** {row['Número da despesa']}")
     st.markdown(f"**Entidade:** {entidade}")
-    st.markdown(f"**Número da função:** {row['Número da função']}")
-    st.markdown(f"**Número do programa:** {row['Número do programa']}")
-    st.markdown(f"**Número da ação:** {row['Número da ação']}")
-    st.markdown(f"**Descrição da ação:** {row['Descrição da ação']}")
-    st.markdown(f"**Natureza de Despesa:** {row['Natureza de Despesa']}")
-    st.markdown(f"**Descrição da natureza de despesa:** {row['Descrição da natureza de despesa']}")
+
+    st.markdown(
+        f"""
+{row['Número da função']} . {row['Número da subfunção']} . {row['Número do programa']} . {row['Número da ação']} - {row['Descrição da ação']}  
+{row['Natureza de Despesa']} - {row['Descrição da natureza de despesa']}
+"""
+    )
 
 st.subheader("Resultado da Comparação")
 
-st.markdown("### Exercício anterior")
-mostrar_resultado(prev, ex_prev)
+st.markdown("#### Exercício anterior")
+mostrar_resultado_simples(prev, ex_prev)
 
 if curr is not None:
-    st.markdown("### Exercício atual")
-    mostrar_resultado(curr, ex_curr)
+    st.markdown("---")
+    st.markdown("#### Exercício atual")
+    mostrar_resultado_simples(curr, ex_curr)
 else:
     st.warning("Não existe despesa correspondente no exercício atual.")
+
 
 # =========================
 # PDF
@@ -214,3 +218,4 @@ if curr is not None:
             file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
             mime="application/pdf"
         )
+
