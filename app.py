@@ -1,32 +1,36 @@
 import streamlit as st
 import pandas as pd
-import os
-import re
+import os, re
 from io import BytesIO
 
-from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.utils import ImageReader
 
-# =========================
-# CONFIGURAÇÃO
-# =========================
+# ----------------------------
+# CONFIG STREAMLIT
+# ----------------------------
 st.set_page_config(
-    page_title="Retificação / Ratificação de Despesa",
+    page_title="Retificação de Despesa",
     layout="centered"
 )
 
-DATA_DIR = "data"
-os.makedirs(DATA_DIR, exist_ok=True)
+# ----------------------------
+# PASTAS
+# ----------------------------
+BASE_DIR = os.path.dirname(__file__)
+DATA_DIR = os.path.join(BASE_DIR, "data")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
-styles = getSampleStyleSheet()
-
-# =========================
-# FUNÇÕES AUXILIARES
-# =========================
-def normalizar(txt):
-    return re.sub(r"\s+", " ", str(txt).strip().lower())
+# ----------------------------
+# UTILIDADES
+# ----------------------------
+def normalize(s):
+    if pd.isna(s):
+        return ""
+    return re.sub(r"\s+", " ", str(s).strip()).lower()
 
 def reduzir_natureza(codigo):
     nums = re.sub(r"\D", "", str(codigo))
@@ -34,189 +38,155 @@ def reduzir_natureza(codigo):
         return codigo
     return f"{nums[0]}.{nums[1]}.{nums[2:4]}.{nums[4:6]}"
 
+styles = getSampleStyleSheet()
+
 def draw_paragraph(c, text, x, y, width):
     style = styles["Normal"]
     style.fontName = "Helvetica"
     style.fontSize = 11
     style.leading = 14
-    p = Paragraph(text.replace("\n", "<br/>"), style)
-    _, h = p.wrap(width, 1000)
+
+    p = Paragraph(text, style)
+    w, h = p.wrap(width, 1000)
     p.drawOn(c, x, y - h)
     return y - h
 
-# =========================
+# ----------------------------
 # LEITURA DOS DADOS
-# =========================
-@st.cache_data(show_spinner=False)
-def carregar_dados():
+# ----------------------------
+@st.cache_data
+def read_all_data():
     data = {}
 
     for fname in os.listdir(DATA_DIR):
-        if not fname.lower().endswith((".xlsx", ".xls", ".csv")):
+        if not fname.lower().endswith((".csv", ".xlsx", ".xls")):
             continue
 
-        match = re.search(r"(20\d{2})", fname)
-        if not match:
+        m = re.search(r"(20\d{2})", fname)
+        if not m:
             continue
 
-        ano = match.group(1)
+        year = m.group(1)
         path = os.path.join(DATA_DIR, fname)
 
-        try:
-            if fname.endswith(".csv"):
-                df = pd.read_csv(path, dtype=str)
-            else:
-                df = pd.read_excel(path, dtype=str)
-        except:
-            continue
-
+        df = pd.read_excel(path, dtype=str)
         df = df.fillna("")
-        data[ano] = df
+
+        data[year] = df
 
     return data
 
-# =========================
-# INTERFACE
-# =========================
-st.title("Retificação / Ratificação de Despesa")
+# ----------------------------
+# PDF
+# ----------------------------
+def gerar_pdf(prev, curr):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    y = height - 50
 
-data = carregar_dados()
+    logo_path = os.path.join(STATIC_DIR, "logo_secretaria.png")
+    if os.path.exists(logo_path):
+        c.drawImage(logo_path, (width - 140) / 2, y - 70, 140, 70)
+    y -= 100
 
-if not data:
-    st.warning("Nenhum arquivo encontrado na pasta /data.")
-    st.stop()
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(width / 2, y, "RETIFICAÇÃO DE NÚMERO CADASTRAL DE DESPESA")
+    y -= 40
 
-# --- ENTIDADES (COLUNA A)
-entidades = sorted({
-    str(v).strip()
-    for df in data.values()
-    for v in df.iloc[:, 0].dropna().unique()
-    if str(v).strip()
-})
+    c.setFont("Helvetica", 11)
+    c.drawString(50, y, "A presente manifestação tem por finalidade retificar ou ratificar")
+    y -= 15
+    c.drawString(50, y, "o número cadastral da despesa, conforme exercícios analisados.")
+    y -= 30
 
-entidade = st.selectbox("Entidade", entidades)
+    # Anterior
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(50, y, "Dotação Orçamentária Anterior:")
+    y -= 20
 
-anos = sorted(data.keys())
-ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2))
-ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1)
+    c.setFont("Helvetica", 11)
+    c.drawString(50, y, f"Despesa nº: {prev['Número da despesa']} - Exercício: {prev['exercicio']}")
+    y -= 20
 
-numero = st.text_input("Número da despesa")
-
-consultar = st.button("🔍 Consultar")
-
-if not consultar:
-    st.stop()
-
-# =========================
-# BUSCA
-# =========================
-df_prev = data[ex_prev].copy()
-df_curr = data[ex_curr].copy()
-
-df_prev = df_prev[df_prev.iloc[:, 0].str.strip() == entidade]
-df_curr = df_curr[df_curr.iloc[:, 0].str.strip() == entidade]
-
-def localizar_por_numero(df, numero):
-    for _, r in df.iterrows():
-        if normalizar(r["Número da despesa"]) == normalizar(numero):
-            return r
-    return None
-
-prev = localizar_por_numero(df_prev, numero)
-
-if prev is None:
-    st.error("Despesa não encontrada no exercício anterior.")
-    st.stop()
-
-curr = None
-for _, r in df_curr.iterrows():
-    if (
-        normalizar(r["Descrição da ação"]) == normalizar(prev["Descrição da ação"])
-        and normalizar(r["Descrição da natureza de despesa"]) == normalizar(prev["Descrição da natureza de despesa"])
-    ):
-        curr = r
-        break
-
-# =========================
-# RESULTADO (POR LINHA)
-# =========================
-def mostrar_resultado_simples(row, ano):
-    st.markdown(f"### Exercício {ano}")
-    st.markdown(f"**Exercício:** {ano}")
-    st.markdown(f"**Número da despesa:** {row['Número da despesa']}")
-    st.markdown(f"**Entidade:** {entidade}")
-
-    st.markdown(
-        f"""
-{row['Número da função']} . {row['Número do programa']}  
-{row['Número da ação']} - {row['Descrição da ação']}  
-{row['Natureza de Despesa']} - {row['Descrição da natureza de despesa']}
-"""
+    natureza_prev = reduzir_natureza(prev["Natureza de Despesa"])
+    y = draw_paragraph(
+        c,
+        f"<b>{natureza_prev}</b> - {prev['Descrição da natureza de despesa']}",
+        50, y, width - 100
     )
 
-st.subheader("Resultado da Comparação")
+    y -= 30
 
-st.markdown("#### Exercício anterior")
-mostrar_resultado_simples(prev, ex_prev)
+    # Atual
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(50, y, "Dotação Orçamentária Atual:")
+    y -= 20
 
-if curr is not None:
-    st.markdown("---")
-    st.markdown("#### Exercício atual")
-    mostrar_resultado_simples(curr, ex_curr)
-else:
-    st.warning("Não existe despesa correspondente no exercício atual.")
+    c.setFont("Helvetica", 11)
+    c.drawString(50, y, f"Despesa nº: {curr['Número da despesa']} - Exercício: {curr['exercicio']}")
+    y -= 20
 
-# =========================
-# PDF
-# =========================
-if curr is not None:
-    gerar_pdf = st.button("📄 Gerar PDF")
+    natureza_curr = reduzir_natureza(curr["Natureza de Despesa"])
+    y = draw_paragraph(
+        c,
+        f"<b>{natureza_curr}</b> - {curr['Descrição da natureza de despesa']}",
+        50, y, width - 100
+    )
 
-    if gerar_pdf:
-        buffer = BytesIO()
-        c = canvas.Canvas(buffer, pagesize=A4)
-        width, height = A4
-        y = height - 50
+    y -= 40
+    c.drawCentredString(width / 2, y, "Diretoria de Planejamento Orçamentário")
 
-        c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(width / 2, y, "RETIFICAÇÃO / RATIFICAÇÃO DE DESPESA")
-        y -= 40
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+    return buffer
 
-        c.setFont("Helvetica", 11)
-        c.drawString(50, y, f"Entidade: {entidade}")
-        y -= 20
+# ----------------------------
+# INTERFACE
+# ----------------------------
+st.title("Retificação / Ratificação de Despesa")
 
-        c.drawString(50, y, f"Despesa anterior: {prev['Número da despesa']} - Exercício {ex_prev}")
-        y -= 20
+data = read_all_data()
+anos = sorted(data.keys())
 
-        y = draw_paragraph(
-            c,
-            f"{prev['Descrição da ação']}<br/>{prev['Descrição da natureza de despesa']}",
-            50, y, width - 100
-        )
+col1, col2 = st.columns(2)
+with col1:
+    ex_prev = st.selectbox("Exercício anterior", anos)
+with col2:
+    ex_curr = st.selectbox("Exercício atual", anos)
 
-        y -= 30
-        c.drawString(50, y, f"Despesa atual: {curr['Número da despesa']} - Exercício {ex_curr}")
-        y -= 20
+entidade = st.text_input("Entidade")
+numero = st.text_input("Número da despesa")
 
-        y = draw_paragraph(
-            c,
-            f"{curr['Descrição da ação']}<br/>{curr['Descrição da natureza de despesa']}",
-            50, y, width - 100
-        )
+if st.button("Buscar"):
+    df_prev = data[ex_prev]
+    df_curr = data[ex_curr]
 
-        y -= 40
-        c.drawCentredString(width / 2, y, "Diretoria de Planejamento Orçamentário")
+    prev = df_prev[df_prev["Número da despesa"] == numero]
+    if prev.empty:
+        st.error("Despesa não encontrada no exercício anterior.")
+    else:
+        prev_row = prev.iloc[0].to_dict()
+        prev_row["exercicio"] = ex_prev
 
-        c.showPage()
-        c.save()
-        buffer.seek(0)
+        curr = df_curr[
+            (df_curr["Descrição do programa"] == prev_row["Descrição do programa"]) &
+            (df_curr["Descrição da natureza de despesa"] == prev_row["Descrição da natureza de despesa"])
+        ]
 
-        st.download_button(
-            ⬇️ Baixar PDF",
-            buffer,
-            file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
-            mime="application/pdf"
-        )
+        if curr.empty:
+            st.warning("Não existe despesa correspondente no exercício atual.")
+        else:
+            curr_row = curr.iloc[0].to_dict()
+            curr_row["exercicio"] = ex_curr
 
+            st.success("Despesa localizada nos dois exercícios.")
 
+            pdf = gerar_pdf(prev_row, curr_row)
+            st.download_button(
+                "📄 Gerar PDF",
+                pdf,
+                file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
+                mime="application/pdf"
+            )
