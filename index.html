@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Comparação de Despesa</title>
+</head>
+<body>
+
+<h2>Consulta de Despesa</h2>
+
+<form method="POST">
+    <label>Número da despesa:</label><br>
+    <input type="text" name="numero_despesa" required>
+    <br><br>
+    <button type="submit">Consultar</button>
+</form>
+
+{% if resultado %}
+<hr>
+
+{% for bloco in resultado %}
+<h3>{{ bloco.titulo }}</h3>
+
+<p><strong>Exercício:</strong> {{ bloco.exercicio }}</p>
+<p><strong>Número da despesa:</strong> {{ bloco.numero_despesa }}</p>
+<p><strong>Entidade:</strong> {{ bloco.entidade }}</p>
+
+<p>
+{{ bloco.linha1 }}<br>
+{{ bloco.linha2 }}
+</p>
+
+{% endfor %}
+
+<br>
+<a href="/gerar_pdf">
+    <button>📄 Gerar PDF</button>
+</a>
+
+{% endif %}
+
+</body>
+</html>
