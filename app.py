@@ -9,7 +9,9 @@ from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.utils import ImageReader
+from PIL import Image
 from datetime import datetime
+
 
 
 # =========================
@@ -199,18 +201,24 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
     # =========================
     logo_path = os.path.join("static", "logo_secretaria.png")
 
-    if os.path.exists(logo_path):
-        logo = ImageReader(logo_path)
-        c.drawImage(
-            logo,
-            x=(width - 80) / 2,
-            y=height - 110,
-            width=80,
-            height=80,
-            mask="auto"
-        )
+if os.path.exists(logo_path):
+    img = Image.open(logo_path)
+    img_width, img_height = img.size
 
-    y = height - 140
+    largura_logo = 300  # ajuste aqui (250–350 costuma ficar ótimo)
+    altura_logo = largura_logo * img_height / img_width
+
+    c.drawImage(
+        logo_path,
+        x=(width - largura_logo) / 2,
+        y=height - altura_logo - 40,
+        width=largura_logo,
+        height=altura_logo,
+        mask="auto",
+        preserveAspectRatio=True
+    )
+
+    y = height - altura_logo - 70
 
     # =========================
     # TÍTULO
@@ -338,3 +346,4 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
         file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
         mime="application/pdf"
     )
+
