@@ -7,7 +7,6 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.utils import ImageReader
 
 # ----------------------------
 # CONFIG STREAMLIT
@@ -27,11 +26,6 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 # ----------------------------
 # UTILIDADES
 # ----------------------------
-def normalize(s):
-    if pd.isna(s):
-        return ""
-    return re.sub(r"\s+", " ", str(s).strip()).lower()
-
 def reduzir_natureza(codigo):
     nums = re.sub(r"\D", "", str(codigo))
     if len(nums) < 6:
@@ -59,7 +53,7 @@ def read_all_data():
     data = {}
 
     for fname in os.listdir(DATA_DIR):
-        if not fname.lower().endswith((".csv", ".xlsx", ".xls")):
+        if not fname.lower().endswith((".xlsx", ".xls", ".csv")):
             continue
 
         m = re.search(r"(20\d{2})", fname)
@@ -69,8 +63,10 @@ def read_all_data():
         year = m.group(1)
         path = os.path.join(DATA_DIR, fname)
 
-        df = pd.read_excel(path, dtype=str)
-        df = df.fillna("")
+        df = pd.read_excel(path, dtype=str).fillna("")
+
+        # padroniza nomes das colunas
+        df.columns = df.columns.str.strip()
 
         data[year] = df
 
@@ -79,58 +75,64 @@ def read_all_data():
 # ----------------------------
 # PDF
 # ----------------------------
-def gerar_pdf(prev, curr):
+def gerar_pdf(prev, curr, entidade):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
-    y = height - 50
-
-    logo_path = os.path.join(STATIC_DIR, "logo_secretaria.png")
-    if os.path.exists(logo_path):
-        c.drawImage(logo_path, (width - 140) / 2, y - 70, 140, 70)
-    y -= 100
+    y = height - 60
 
     c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(width / 2, y, "RETIFICAÇÃO DE NÚMERO CADASTRAL DE DESPESA")
-    y -= 40
-
-    c.setFont("Helvetica", 11)
-    c.drawString(50, y, "A presente manifestação tem por finalidade retificar ou ratificar")
-    y -= 15
-    c.drawString(50, y, "o número cadastral da despesa, conforme exercícios analisados.")
+    c.drawCentredString(width / 2, y, "RETIFICAÇÃO / RATIFICAÇÃO")
     y -= 30
 
-    # Anterior
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(width / 2, y, entidade)
+    y -= 40
+
+    texto_intro = (
+        "A presente manifestação tem por finalidade retificar ou ratificar "
+        "o número cadastral da despesa, conforme comparação entre os exercícios analisados."
+    )
+    y = draw_paragraph(c, texto_intro, 50, y, width - 100)
+    y -= 30
+
+    # Exercício anterior
     c.setFont("Helvetica-Bold", 11)
     c.drawString(50, y, "Dotação Orçamentária Anterior:")
     y -= 20
 
     c.setFont("Helvetica", 11)
-    c.drawString(50, y, f"Despesa nº: {prev['Número da despesa']} - Exercício: {prev['exercicio']}")
+    c.drawString(
+        50, y,
+        f"Despesa nº {prev['Número da despesa']} – Exercício {prev['exercicio']}"
+    )
     y -= 20
 
     natureza_prev = reduzir_natureza(prev["Natureza de Despesa"])
     y = draw_paragraph(
         c,
-        f"<b>{natureza_prev}</b> - {prev['Descrição da natureza de despesa']}",
+        f"<b>{natureza_prev}</b> – {prev['Descrição da natureza de despesa']}",
         50, y, width - 100
     )
 
     y -= 30
 
-    # Atual
+    # Exercício atual
     c.setFont("Helvetica-Bold", 11)
     c.drawString(50, y, "Dotação Orçamentária Atual:")
     y -= 20
 
     c.setFont("Helvetica", 11)
-    c.drawString(50, y, f"Despesa nº: {curr['Número da despesa']} - Exercício: {curr['exercicio']}")
+    c.drawString(
+        50, y,
+        f"Despesa nº {curr['Número da despesa']} – Exercício {curr['exercicio']}"
+    )
     y -= 20
 
     natureza_curr = reduzir_natureza(curr["Natureza de Despesa"])
     y = draw_paragraph(
         c,
-        f"<b>{natureza_curr}</b> - {curr['Descrição da natureza de despesa']}",
+        f"<b>{natureza_curr}</b> – {curr['Descrição da natureza de despesa']}",
         50, y, width - 100
     )
 
@@ -150,22 +152,39 @@ st.title("Retificação / Ratificação de Despesa")
 data = read_all_data()
 anos = sorted(data.keys())
 
+# 🔹 Lista de entidades (coluna A)
+entidades = sorted(
+    set(
+        df.iloc[:, 0].str.strip()
+        for df in data.values()
+        for _ in [0]
+    ).pop()
+)
+
+entidade = st.selectbox("Entidade", sorted(set(
+    e for df in data.values() for e in df.iloc[:, 0].unique()
+)))
+
 col1, col2 = st.columns(2)
 with col1:
     ex_prev = st.selectbox("Exercício anterior", anos)
 with col2:
     ex_curr = st.selectbox("Exercício atual", anos)
 
-entidade = st.text_input("Entidade")
 numero = st.text_input("Número da despesa")
 
 if st.button("Buscar"):
     df_prev = data[ex_prev]
     df_curr = data[ex_curr]
 
+    # 🔒 FILTRO POR ENTIDADE (COLUNA A)
+    df_prev = df_prev[df_prev.iloc[:, 0] == entidade]
+    df_curr = df_curr[df_curr.iloc[:, 0] == entidade]
+
     prev = df_prev[df_prev["Número da despesa"] == numero]
+
     if prev.empty:
-        st.error("Despesa não encontrada no exercício anterior.")
+        st.error("Despesa não encontrada para a entidade selecionada.")
     else:
         prev_row = prev.iloc[0].to_dict()
         prev_row["exercicio"] = ex_prev
@@ -176,17 +195,17 @@ if st.button("Buscar"):
         ]
 
         if curr.empty:
-            st.warning("Não existe despesa correspondente no exercício atual.")
+            st.warning("Não existe despesa correspondente no exercício atual para esta entidade.")
         else:
             curr_row = curr.iloc[0].to_dict()
             curr_row["exercicio"] = ex_curr
 
-            st.success("Despesa localizada nos dois exercícios.")
+            st.success("Despesa localizada corretamente para a entidade selecionada.")
 
-            pdf = gerar_pdf(prev_row, curr_row)
+            pdf = gerar_pdf(prev_row, curr_row, entidade)
             st.download_button(
                 "📄 Gerar PDF",
                 pdf,
-                file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
+                file_name=f"Retificacao_Despesa_{entidade}_{ex_curr}.pdf",
                 mime="application/pdf"
             )
