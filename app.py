@@ -169,53 +169,82 @@ else:
 # =========================
 # PDF
 # =========================
-if curr is not None:
-    gerar_pdf = st.button("📄 Gerar PDF")
+# =========================
+# PDF (SEM BOTÃO QUE RECARREGA)
+# =========================
+if "curr" in st.session_state and st.session_state["curr"] is not None:
 
-    if gerar_pdf:
-        buffer = BytesIO()
-        c = canvas.Canvas(buffer, pagesize=A4)
-        width, height = A4
-        y = height - 50
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    y = height - 50
 
-        c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(width / 2, y, "RETIFICAÇÃO / RATIFICAÇÃO DE DESPESA")
-        y -= 40
+    prev = st.session_state["prev"]
+    curr = st.session_state["curr"]
+    entidade = st.session_state["entidade"]
+    ex_prev = st.session_state["ex_prev"]
+    ex_curr = st.session_state["ex_curr"]
 
-        c.setFont("Helvetica", 11)
-        c.drawString(50, y, f"Entidade: {entidade}")
-        y -= 20
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(width / 2, y, "RETIFICAÇÃO / RATIFICAÇÃO DE DESPESA")
+    y -= 40
 
-        c.drawString(50, y, f"Despesa anterior: {prev['Número da despesa']} - Exercício {ex_prev}")
-        y -= 20
+    c.setFont("Helvetica", 11)
+    c.drawString(50, y, f"Entidade: {entidade}")
+    y -= 30
 
-        y = draw_paragraph(
-            c,
-            f"{prev['Descrição da ação']}<br/>{prev['Descrição da natureza de despesa']}",
-            50, y, width - 100
-        )
+    # ---- Exercício anterior
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(50, y, "Exercício anterior")
+    y -= 20
 
-        y -= 30
-        c.drawString(50, y, f"Despesa atual: {curr['Número da despesa']} - Exercício {ex_curr}")
-        y -= 20
+    c.setFont("Helvetica", 11)
+    c.drawString(50, y, f"Exercício: {ex_prev}")
+    y -= 16
+    c.drawString(50, y, f"Número da despesa: {prev['Número da despesa']}")
+    y -= 20
 
-        y = draw_paragraph(
-            c,
-            f"{curr['Descrição da ação']}<br/>{curr['Descrição da natureza de despesa']}",
-            50, y, width - 100
-        )
+    y = draw_paragraph(
+        c,
+        f"""
+{prev['Número da função']} . {prev['Número da subfunção']} . {prev['Número do programa']} . {prev['Número da ação']} - {prev['Descrição da ação']}<br/>
+{prev['Natureza de Despesa']} - {prev['Descrição da natureza de despesa']}
+""",
+        50, y, width - 100
+    )
 
-        y -= 40
-        c.drawCentredString(width / 2, y, "Diretoria de Planejamento Orçamentário")
+    y -= 30
 
-        c.showPage()
-        c.save()
-        buffer.seek(0)
+    # ---- Exercício atual
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(50, y, "Exercício atual")
+    y -= 20
 
-        st.download_button(
-            "⬇️ Baixar PDF",
-            buffer,
-            file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
-            mime="application/pdf"
-        )
+    c.setFont("Helvetica", 11)
+    c.drawString(50, y, f"Exercício: {ex_curr}")
+    y -= 16
+    c.drawString(50, y, f"Número da despesa: {curr['Número da despesa']}")
+    y -= 20
 
+    y = draw_paragraph(
+        c,
+        f"""
+{curr['Número da função']} . {curr['Número da subfunção']} . {curr['Número do programa']} . {curr['Número da ação']} - {curr['Descrição da ação']}<br/>
+{curr['Natureza de Despesa']} - {curr['Descrição da natureza de despesa']}
+""",
+        50, y, width - 100
+    )
+
+    y -= 40
+    c.drawCentredString(width / 2, y, "Diretoria de Planejamento Orçamentário")
+
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+
+    st.download_button(
+        "📄 Baixar PDF",
+        buffer,
+        file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
+        mime="application/pdf"
+    )
