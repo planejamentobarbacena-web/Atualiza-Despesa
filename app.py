@@ -98,8 +98,27 @@ entidades = sorted({
     for v in df.iloc[:, 0].dropna().unique()
     if str(v).strip()
 })
+# =========================
+# FUNÇÃO PARA LIMPAR CAMPOS AO TROCAR ENTIDADE
+# =========================
+def limpar_campos():
+    # Limpa número da despesa
+    st.session_state["numero"] = ""
+    # Limpa resultados anteriores
+    st.session_state["prev"] = None
+    st.session_state["curr"] = None
 
-entidade = st.selectbox("Entidade", entidades)
+entidade = st.selectbox(
+    "Entidade",
+    entidades,
+    index=0,
+    key="entidade_selecionada",
+    on_change=limpar_campos
+)
+
+# Pega a entidade selecionada
+entidade = st.session_state["entidade_selecionada"]
+
 
 anos = sorted(data.keys())
 ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2))
@@ -354,6 +373,7 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
 else:
     # Caso não exista curr, apenas mostrar a mensagem
     st.warning("Favor entrar em contato com a Diretoria de Planejamento Orçamentário.")
+
 
 
 
