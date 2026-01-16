@@ -103,9 +103,13 @@ entidades = sorted({
 # FUNÇÃO PARA LIMPAR CAMPOS AO TROCAR ENTIDADE
 # =========================
 def limpar_campos():
+    # Limpa número da despesa
     st.session_state["numero"] = ""
-    st.session_state["ex_prev"] = None
-    st.session_state["ex_curr"] = None
+    # Reseta exercícios para índices padrão
+    anos = sorted(data.keys())
+    st.session_state["ex_prev"] = anos[max(0, len(anos) - 2)]
+    st.session_state["ex_curr"] = anos[-1]
+    # Limpa resultados anteriores
     st.session_state["prev"] = None
     st.session_state["curr"] = None
 
@@ -127,8 +131,18 @@ entidade = st.session_state["entidade_selecionada"]
 # EXERCÍCIOS E NÚMERO
 # =========================
 anos = sorted(data.keys())
-ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2), key="ex_prev")
-ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1, key="ex_curr")
+ex_prev = st.selectbox(
+    "Exercício anterior",
+    anos,
+    index=max(0, len(anos) - 2),
+    key="ex_prev"
+)
+ex_curr = st.selectbox(
+    "Exercício atual",
+    anos,
+    index=len(anos) - 1,
+    key="ex_curr"
+)
 
 numero = st.text_input("Número da despesa", key="numero")
 
@@ -150,8 +164,11 @@ consultar = st.button("🔍 Consultar")
 if not consultar:
     st.stop()
 
-if not consultar:
-    st.stop()
+# =========================
+# BUSCA
+# =========================
+df_prev = data[ex_prev].copy()
+df_curr = data[ex_curr].copy()
 
 # =========================
 # BUSCA
@@ -389,6 +406,7 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
 else:
     # Caso não exista curr, apenas mostrar a mensagem
     st.warning("Favor entrar em contato com a Diretoria de Planejamento Orçamentário.")
+
 
 
 
