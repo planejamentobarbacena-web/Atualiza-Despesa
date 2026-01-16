@@ -353,8 +353,7 @@ if os.path.exists(logo_path):
         file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
         mime="application/pdf"
     )
-
-
-
-
+    else:
+    # Caso não exista curr, apenas mostrar a mensagem
+    st.warning("Não existe despesa correspondente no exercício atual.")
 
