@@ -347,4 +347,5 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
 
 else:
     # Caso não exista curr, apenas mostrar a mensagem
-    st.warning("Não existe despesa correspondente no exercício atual.")
+    st.warning("Favor entrar em contato com a Diretoria de Planejamento Orçamentário.")
+
