@@ -179,7 +179,7 @@ else:
     st.warning("Não existe despesa correspondente no exercício atual.")
 
 # =========================
-# PDF (SEM RERUN)
+# GERAR PDF (SOMENTE SE HOUVER curr)
 # =========================
 if "curr" in st.session_state and st.session_state["curr"] is not None:
 
@@ -191,41 +191,39 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
 
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
+    width, height = A4  # largura e altura da página
 
     margem_x = 50
     largura_texto = width - 2 * margem_x
 
     # =========================
     # LOGO (ACIMA DO TÍTULO)
-    # =========================
-    from PIL import Image
+    logo_path = os.path.join("static", "logo_secretaria.png")
 
-logo_path = os.path.join("static", "logo_secretaria.png")
+    if os.path.exists(logo_path):
+        img = Image.open(logo_path)
+        img_w, img_h = img.size
 
-if os.path.exists(logo_path):
-    img = Image.open(logo_path)
-    img_w, img_h = img.size
+        largura_logo = 500  # ajuste como necessário
+        proporcao = img_h / img_w
+        altura_logo = largura_logo * proporcao
 
-    largura_logo = 500  # <<< AUMENTE AQUI (ex: 180, 220, 250)
-    proporcao = img_h / img_w
-    altura_logo = largura_logo * proporcao
+        x_logo = (width - largura_logo) / 2
+        y_logo = height - altura_logo - 20
 
-    x_logo = (width - largura_logo) / 2
-    y_logo = height - altura_logo - 20
+        c.drawImage(
+            logo_path,
+            x=x_logo,
+            y=y_logo,
+            width=largura_logo,
+            height=altura_logo,
+            preserveAspectRatio=True,
+            mask="auto"
+        )
 
-    c.drawImage(
-        logo_path,
-        x=x_logo,
-        y=y_logo,
-        width=largura_logo,
-        height=altura_logo,
-        preserveAspectRatio=True,
-        mask="auto"
-    )
-
-    y = y_logo - 20
-
+        y = y_logo - 20
+    else:
+        y = height - 50  # posição inicial caso não haja logo
 
     # =========================
     # TÍTULO
@@ -262,21 +260,18 @@ if os.path.exists(logo_path):
     y -= 30
 
     # =========================
-    # ORIGEM
+    # ORIGEM (Exercício anterior)
     # =========================
     c.drawString(margem_x, y, "Origem")
     y -= 18
-
     c.setFont("Helvetica", 11)
     c.drawString(margem_x, y, f"Exercício: {ex_prev}")
     y -= 16
     c.drawString(margem_x, y, f"Número da despesa: {prev['Número da despesa']}")
     y -= 22
-
     c.setFont("Helvetica-Bold", 11)
     c.drawString(margem_x, y, "Dotação orçamentária:")
     y -= 18
-
     c.setFont("Helvetica", 11)
     y = draw_paragraph(
         c,
@@ -286,7 +281,6 @@ if os.path.exists(logo_path):
         margem_x, y, largura_texto
     )
     y -= 6
-
     y = draw_paragraph(
         c,
         f"{prev['Natureza de Despesa']} - {prev['Descrição da natureza de despesa']}",
@@ -295,22 +289,19 @@ if os.path.exists(logo_path):
     y -= 30
 
     # =========================
-    # ATUALIZAÇÃO
+    # ATUALIZAÇÃO (Exercício atual)
     # =========================
     c.setFont("Helvetica-Bold", 11)
     c.drawString(margem_x, y, "Atualização")
     y -= 18
-
     c.setFont("Helvetica", 11)
     c.drawString(margem_x, y, f"Exercício: {ex_curr}")
     y -= 16
     c.drawString(margem_x, y, f"Número da despesa: {curr['Número da despesa']}")
     y -= 22
-
     c.setFont("Helvetica-Bold", 11)
     c.drawString(margem_x, y, "Dotação orçamentária:")
     y -= 18
-
     c.setFont("Helvetica", 11)
     y = draw_paragraph(
         c,
@@ -320,7 +311,6 @@ if os.path.exists(logo_path):
         margem_x, y, largura_texto
     )
     y -= 6
-
     y = draw_paragraph(
         c,
         f"{curr['Natureza de Despesa']} - {curr['Descrição da natureza de despesa']}",
@@ -347,6 +337,7 @@ if os.path.exists(logo_path):
     c.save()
     buffer.seek(0)
 
+    # BOTÃO DE DOWNLOAD
     st.download_button(
         "📄 Baixar PDF",
         buffer,
@@ -354,5 +345,6 @@ if os.path.exists(logo_path):
         mime="application/pdf"
     )
 
-
-
+else:
+    # Caso não exista curr, apenas mostrar a mensagem
+    st.warning("Não existe despesa correspondente no exercício atual.")
