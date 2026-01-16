@@ -108,6 +108,12 @@ ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1)
 numero = st.text_input("Número da despesa")
 
 consultar = st.button("🔍 Consultar")
+if int(ex_prev) >= int(ex_curr):
+    st.error(
+        "O exercício anterior deve ser menor que o exercício atual. "
+        "Ajuste os exercícios para continuar a análise."
+    )
+    st.stop()
 
 if not consultar:
     st.stop()
@@ -348,4 +354,5 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
 else:
     # Caso não exista curr, apenas mostrar a mensagem
     st.warning("Favor entrar em contato com a Diretoria de Planejamento Orçamentário.")
+
 
