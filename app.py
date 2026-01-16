@@ -52,18 +52,14 @@ def draw_paragraph(c, text, x, y, width):
 @st.cache_data(show_spinner=False)
 def carregar_dados():
     data = {}
-
     for fname in os.listdir(DATA_DIR):
         if not fname.lower().endswith((".xlsx", ".xls", ".csv")):
             continue
-
         match = re.search(r"(20\d{2})", fname)
         if not match:
             continue
-
         ano = match.group(1)
         path = os.path.join(DATA_DIR, fname)
-
         try:
             if fname.endswith(".csv"):
                 df = pd.read_csv(path, dtype=str)
@@ -71,10 +67,8 @@ def carregar_dados():
                 df = pd.read_excel(path, dtype=str)
         except:
             continue
-
         df = df.fillna("")
         data[ano] = df
-
     return data
 
 # =========================
@@ -95,8 +89,6 @@ entidades = sorted({
     if str(v).strip()
 })
 
-anos = sorted(data.keys())
-
 # =========================
 # FUNÇÃO PARA LIMPAR CAMPOS AO TROCAR ENTIDADE
 # =========================
@@ -104,8 +96,6 @@ def limpar_campos():
     st.session_state["numero"] = ""
     st.session_state["prev"] = None
     st.session_state["curr"] = None
-    st.session_state["ex_prev"] = anos[max(0, len(anos)-2)]
-    st.session_state["ex_curr"] = anos[-1]
 
 # =========================
 # SELECTBOX DA ENTIDADE (com limpeza automática)
@@ -117,16 +107,15 @@ entidade = st.selectbox(
     key="entidade_selecionada",
     on_change=limpar_campos
 )
-
-# Pega a entidade selecionada
 entidade = st.session_state["entidade_selecionada"]
 
 # =========================
 # EXERCÍCIOS E NÚMERO
 # =========================
-ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2), key="ex_prev")
-ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1, key="ex_curr")
-numero = st.text_input("Número da despesa", key="numero")
+anos = sorted(data.keys())
+ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2))
+ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1)
+numero = st.text_input("Número da despesa")
 
 # =========================
 # VALIDAÇÃO: EXERCÍCIO ANTERIOR < EXERCÍCIO ATUAL
@@ -233,7 +222,15 @@ if curr is not None:
         altura_logo = largura_logo * proporcao
         x_logo = (width - largura_logo) / 2
         y_logo = height - altura_logo - 20
-        c.drawImage(logo_path, x_logo, y_logo, largura_logo, altura_logo, preserveAspectRatio=True, mask="auto")
+        c.drawImage(
+            logo_path,
+            x=x_logo,
+            y=y_logo,
+            width=largura_logo,
+            height=altura_logo,
+            preserveAspectRatio=True,
+            mask="auto"
+        )
         y = y_logo - 20
     else:
         y = height - 50
@@ -251,7 +248,7 @@ if curr is not None:
     c.drawRightString(width - margem_x, y, f"Data: {data_atual}")
     y -= 30
 
-    # TEXTO INTRODUTÓRIO
+    # TEXTO INICIAL
     texto_inicial = (
         "A presente manifestação tem por finalidade retificar ou ratificar "
         "o número cadastral da despesa, conforme comparação entre os exercícios analisados."
@@ -276,14 +273,19 @@ if curr is not None:
     c.drawString(margem_x, y, "Dotação orçamentária:")
     y -= 18
     c.setFont("Helvetica", 11)
-    y = draw_paragraph(c,
+    y = draw_paragraph(
+        c,
         f"{prev['Número da função']} . {prev['Número da subfunção']} . "
-        f"{prev['Número do programa']} . {prev['Número da ação']} - {prev['Descrição da ação']}",
-        margem_x, y, largura_texto)
+        f"{prev['Número do programa']} . {prev['Número da ação']} - "
+        f"{prev['Descrição da ação']}",
+        margem_x, y, largura_texto
+    )
     y -= 6
-    y = draw_paragraph(c,
+    y = draw_paragraph(
+        c,
         f"{prev['Natureza de Despesa']} - {prev['Descrição da natureza de despesa']}",
-        margem_x, y, largura_texto)
+        margem_x, y, largura_texto
+    )
     y -= 30
 
     # ATUALIZAÇÃO
@@ -299,18 +301,25 @@ if curr is not None:
     c.drawString(margem_x, y, "Dotação orçamentária:")
     y -= 18
     c.setFont("Helvetica", 11)
-    y = draw_paragraph(c,
+    y = draw_paragraph(
+        c,
         f"{curr['Número da função']} . {curr['Número da subfunção']} . "
-        f"{curr['Número do programa']} . {curr['Número da ação']} - {curr['Descrição da ação']}",
-        margem_x, y, largura_texto)
+        f"{curr['Número do programa']} . {curr['Número da ação']} - "
+        f"{curr['Descrição da ação']}",
+        margem_x, y, largura_texto
+    )
     y -= 6
-    y = draw_paragraph(c,
+    y = draw_paragraph(
+        c,
         f"{curr['Natureza de Despesa']} - {curr['Descrição da natureza de despesa']}",
-        margem_x, y, largura_texto)
+        margem_x, y, largura_texto
+    )
     y -= 30
 
     # TEXTO FINAL
-    texto_final = "Quanto à Fonte de Recurso, considerar a mesma da Declaração Orçamentária original."
+    texto_final = (
+        "Quanto à Fonte de Recurso, considerar a mesma da Declaração Orçamentária original."
+    )
     y = draw_paragraph(c, texto_final, margem_x, y, largura_texto)
     y -= 40
 
@@ -329,5 +338,6 @@ if curr is not None:
         file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
         mime="application/pdf"
     )
+
 else:
     st.warning("Favor entrar em contato com a Diretoria de Planejamento Orçamentário.")
