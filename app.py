@@ -8,11 +8,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.utils import ImageReader
 from PIL import Image
 from datetime import datetime
-
-
 
 # =========================
 # CONFIGURAÇÃO
@@ -86,7 +83,6 @@ def carregar_dados():
 st.title("Retificação / Ratificação de Despesa")
 
 data = carregar_dados()
-
 if not data:
     st.warning("Nenhum arquivo encontrado na pasta /data.")
     st.stop()
@@ -98,16 +94,22 @@ entidades = sorted({
     for v in df.iloc[:, 0].dropna().unique()
     if str(v).strip()
 })
+
+anos = sorted(data.keys())
+
 # =========================
 # FUNÇÃO PARA LIMPAR CAMPOS AO TROCAR ENTIDADE
 # =========================
 def limpar_campos():
-    # Limpa número da despesa
     st.session_state["numero"] = ""
-    # Limpa resultados anteriores
     st.session_state["prev"] = None
     st.session_state["curr"] = None
+    st.session_state["ex_prev"] = anos[max(0, len(anos)-2)]
+    st.session_state["ex_curr"] = anos[-1]
 
+# =========================
+# SELECTBOX DA ENTIDADE (com limpeza automática)
+# =========================
 entidade = st.selectbox(
     "Entidade",
     entidades,
@@ -119,21 +121,27 @@ entidade = st.selectbox(
 # Pega a entidade selecionada
 entidade = st.session_state["entidade_selecionada"]
 
+# =========================
+# EXERCÍCIOS E NÚMERO
+# =========================
+ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2), key="ex_prev")
+ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1, key="ex_curr")
+numero = st.text_input("Número da despesa", key="numero")
 
-anos = sorted(data.keys())
-ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2))
-ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1)
-
-numero = st.text_input("Número da despesa")
-
-consultar = st.button("🔍 Consultar")
-if int(ex_prev) >= int(ex_curr):
+# =========================
+# VALIDAÇÃO: EXERCÍCIO ANTERIOR < EXERCÍCIO ATUAL
+# =========================
+if ex_prev and ex_curr and int(ex_prev) >= int(ex_curr):
     st.error(
         "O exercício anterior deve ser menor que o exercício atual. "
         "Ajuste os exercícios para continuar a análise."
     )
     st.stop()
 
+# =========================
+# BOTÃO CONSULTAR
+# =========================
+consultar = st.button("🔍 Consultar")
 if not consultar:
     st.stop()
 
@@ -142,7 +150,6 @@ if not consultar:
 # =========================
 df_prev = data[ex_prev].copy()
 df_curr = data[ex_curr].copy()
-
 df_prev = df_prev[df_prev.iloc[:, 0].str.strip() == entidade]
 df_curr = df_curr[df_curr.iloc[:, 0].str.strip() == entidade]
 
@@ -153,7 +160,6 @@ def localizar_por_numero(df, numero):
     return None
 
 prev = localizar_por_numero(df_prev, numero)
-
 if prev is None:
     st.error("Despesa não encontrada no exercício anterior.")
     st.stop()
@@ -166,6 +172,7 @@ for _, r in df_curr.iterrows():
     ):
         curr = r
         break
+
 # =========================
 # SALVA RESULTADO NO SESSION_STATE
 # =========================
@@ -183,7 +190,6 @@ def mostrar_resultado_simples(row, ano):
     st.markdown(f"**Exercício:** {ano}")
     st.markdown(f"**Número da despesa:** {row['Número da despesa']}")
     st.markdown(f"**Entidade:** {entidade}")
-
     st.markdown(
         f"""
 {row['Número da função']} . {row['Número da subfunção']} . {row['Número do programa']} . {row['Número da ação']} - {row['Descrição da ação']}  
@@ -192,10 +198,8 @@ def mostrar_resultado_simples(row, ano):
     )
 
 st.subheader("Resultado da Comparação")
-
 st.markdown("#### Exercício anterior")
 mostrar_resultado_simples(prev, ex_prev)
-
 if curr is not None:
     st.markdown("---")
     st.markdown("#### Exercício atual")
@@ -206,8 +210,7 @@ else:
 # =========================
 # GERAR PDF (SOMENTE SE HOUVER curr)
 # =========================
-if "curr" in st.session_state and st.session_state["curr"] is not None:
-
+if curr is not None:
     prev = st.session_state["prev"]
     curr = st.session_state["curr"]
     entidade = st.session_state["entidade"]
@@ -216,60 +219,39 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
 
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4  # largura e altura da página
-
+    width, height = A4
     margem_x = 50
     largura_texto = width - 2 * margem_x
 
-    # =========================
-    # LOGO (ACIMA DO TÍTULO)
+    # LOGO
     logo_path = os.path.join("static", "logo_secretaria.png")
-
     if os.path.exists(logo_path):
         img = Image.open(logo_path)
         img_w, img_h = img.size
-
-        largura_logo = 500  # ajuste como necessário
+        largura_logo = 500
         proporcao = img_h / img_w
         altura_logo = largura_logo * proporcao
-
         x_logo = (width - largura_logo) / 2
         y_logo = height - altura_logo - 20
-
-        c.drawImage(
-            logo_path,
-            x=x_logo,
-            y=y_logo,
-            width=largura_logo,
-            height=altura_logo,
-            preserveAspectRatio=True,
-            mask="auto"
-        )
-
+        c.drawImage(logo_path, x_logo, y_logo, largura_logo, altura_logo, preserveAspectRatio=True, mask="auto")
         y = y_logo - 20
     else:
-        y = height - 50  # posição inicial caso não haja logo
+        y = height - 50
 
-    # =========================
     # TÍTULO
-    # =========================
     c.setFont("Helvetica-Bold", 14)
     c.drawCentredString(width / 2, y, "RETIFICAÇÃO – RATIFICAÇÃO")
     y -= 22
     c.drawCentredString(width / 2, y, "NÚMERO CADASTRAL DE DESPESA")
     y -= 30
 
-    # =========================
     # DATA
-    # =========================
     data_atual = datetime.now().strftime("%d/%m/%Y")
     c.setFont("Helvetica", 11)
     c.drawRightString(width - margem_x, y, f"Data: {data_atual}")
     y -= 30
 
-    # =========================
     # TEXTO INTRODUTÓRIO
-    # =========================
     texto_inicial = (
         "A presente manifestação tem por finalidade retificar ou ratificar "
         "o número cadastral da despesa, conforme comparação entre os exercícios analisados."
@@ -277,16 +259,12 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
     y = draw_paragraph(c, texto_inicial, margem_x, y, largura_texto)
     y -= 20
 
-    # =========================
     # ENTIDADE
-    # =========================
     c.setFont("Helvetica-Bold", 11)
     c.drawString(margem_x, y, f"Entidade: {entidade}")
     y -= 30
 
-    # =========================
-    # ORIGEM (Exercício anterior)
-    # =========================
+    # ORIGEM
     c.drawString(margem_x, y, "Origem")
     y -= 18
     c.setFont("Helvetica", 11)
@@ -298,24 +276,17 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
     c.drawString(margem_x, y, "Dotação orçamentária:")
     y -= 18
     c.setFont("Helvetica", 11)
-    y = draw_paragraph(
-        c,
+    y = draw_paragraph(c,
         f"{prev['Número da função']} . {prev['Número da subfunção']} . "
-        f"{prev['Número do programa']} . {prev['Número da ação']} - "
-        f"{prev['Descrição da ação']}",
-        margem_x, y, largura_texto
-    )
+        f"{prev['Número do programa']} . {prev['Número da ação']} - {prev['Descrição da ação']}",
+        margem_x, y, largura_texto)
     y -= 6
-    y = draw_paragraph(
-        c,
+    y = draw_paragraph(c,
         f"{prev['Natureza de Despesa']} - {prev['Descrição da natureza de despesa']}",
-        margem_x, y, largura_texto
-    )
+        margem_x, y, largura_texto)
     y -= 30
 
-    # =========================
-    # ATUALIZAÇÃO (Exercício atual)
-    # =========================
+    # ATUALIZAÇÃO
     c.setFont("Helvetica-Bold", 11)
     c.drawString(margem_x, y, "Atualização")
     y -= 18
@@ -328,33 +299,22 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
     c.drawString(margem_x, y, "Dotação orçamentária:")
     y -= 18
     c.setFont("Helvetica", 11)
-    y = draw_paragraph(
-        c,
+    y = draw_paragraph(c,
         f"{curr['Número da função']} . {curr['Número da subfunção']} . "
-        f"{curr['Número do programa']} . {curr['Número da ação']} - "
-        f"{curr['Descrição da ação']}",
-        margem_x, y, largura_texto
-    )
+        f"{curr['Número do programa']} . {curr['Número da ação']} - {curr['Descrição da ação']}",
+        margem_x, y, largura_texto)
     y -= 6
-    y = draw_paragraph(
-        c,
+    y = draw_paragraph(c,
         f"{curr['Natureza de Despesa']} - {curr['Descrição da natureza de despesa']}",
-        margem_x, y, largura_texto
-    )
+        margem_x, y, largura_texto)
     y -= 30
 
-    # =========================
     # TEXTO FINAL
-    # =========================
-    texto_final = (
-        "Quanto à Fonte de Recurso, considerar a mesma da Declaração Orçamentária original."
-    )
+    texto_final = "Quanto à Fonte de Recurso, considerar a mesma da Declaração Orçamentária original."
     y = draw_paragraph(c, texto_final, margem_x, y, largura_texto)
     y -= 40
 
-    # =========================
     # ASSINATURA
-    # =========================
     c.setFont("Helvetica-Bold", 11)
     c.drawCentredString(width / 2, y, "Diretoria de Planejamento Orçamentário")
 
@@ -362,18 +322,12 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
     c.save()
     buffer.seek(0)
 
-    # BOTÃO DE DOWNLOAD
+    # DOWNLOAD
     st.download_button(
         "📄 Baixar PDF",
         buffer,
         file_name=f"Retificacao_Despesa_{ex_curr}.pdf",
         mime="application/pdf"
     )
-
 else:
-    # Caso não exista curr, apenas mostrar a mensagem
     st.warning("Favor entrar em contato com a Diretoria de Planejamento Orçamentário.")
-
-
-
-
