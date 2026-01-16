@@ -140,13 +140,37 @@ if prev is None:
     st.stop()
 
 curr = None
-for _, r in df_curr.iterrows():
-    if (
-        normalizar(r["Descrição da ação"]) == normalizar(prev["Descrição da ação"])
-        and normalizar(r["Descrição da natureza de despesa"]) == normalizar(prev["Descrição da natureza de despesa"])
-    ):
-        curr = r
-        break
+# =========================
+# LOCALIZAR DESPESA ATUAL PELOS NÚMEROS
+# =========================
+
+# Normaliza os campos numéricos e Natureza de Despesa (remove espaços)
+df_curr_norm = df_curr.copy()
+for col in ["Número da função", "Número da subfunção", "Número do programa", "Número da ação", "Natureza de Despesa"]:
+    df_curr_norm[col] = df_curr_norm[col].astype(str).str.strip()
+
+prev_nums = {
+    "Número da função": prev["Número da função"].strip(),
+    "Número da subfunção": prev["Número da subfunção"].strip(),
+    "Número do programa": prev["Número do programa"].strip(),
+    "Número da ação": prev["Número da ação"].strip(),
+    "Natureza de Despesa": prev["Natureza de Despesa"].strip()
+}
+
+# Filtra apenas linhas que têm todos os números iguais
+candidatos = df_curr_norm[
+    (df_curr_norm["Número da função"] == prev_nums["Número da função"]) &
+    (df_curr_norm["Número da subfunção"] == prev_nums["Número da subfunção"]) &
+    (df_curr_norm["Número do programa"] == prev_nums["Número do programa"]) &
+    (df_curr_norm["Número da ação"] == prev_nums["Número da ação"]) &
+    (df_curr_norm["Natureza de Despesa"] == prev_nums["Natureza de Despesa"])
+]
+
+if not candidatos.empty:
+    curr = candidatos.iloc[0]  # Pega o primeiro resultado (normalmente só terá um)
+else:
+    curr = None
+
 # =========================
 # SALVA RESULTADO NO SESSION_STATE
 # =========================
@@ -354,6 +378,7 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
 else:
     # Caso não exista curr, apenas mostrar a mensagem
     st.warning("Favor entrar em contato com a Diretoria de Planejamento Orçamentário.")
+
 
 
 
