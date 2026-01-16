@@ -99,20 +99,55 @@ entidades = sorted({
     if str(v).strip()
 })
 
-entidade = st.selectbox("Entidade", entidades)
+# =========================
+# FUNÇÃO PARA LIMPAR CAMPOS AO TROCAR ENTIDADE
+# =========================
+def limpar_campos():
+    st.session_state["numero"] = ""
+    st.session_state["ex_prev"] = None
+    st.session_state["ex_curr"] = None
+    st.session_state["prev"] = None
+    st.session_state["curr"] = None
 
+# =========================
+# SELECTBOX DA ENTIDADE (com limpeza automática)
+# =========================
+entidade = st.selectbox(
+    "Entidade",
+    entidades,
+    index=0,
+    key="entidade_selecionada",
+    on_change=limpar_campos
+)
+
+# Pega a entidade selecionada
+entidade = st.session_state["entidade_selecionada"]
+
+# =========================
+# EXERCÍCIOS E NÚMERO
+# =========================
 anos = sorted(data.keys())
-ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2))
-ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1)
+ex_prev = st.selectbox("Exercício anterior", anos, index=max(0, len(anos) - 2), key="ex_prev")
+ex_curr = st.selectbox("Exercício atual", anos, index=len(anos) - 1, key="ex_curr")
 
-numero = st.text_input("Número da despesa")
+numero = st.text_input("Número da despesa", key="numero")
 
-consultar = st.button("🔍 Consultar")
-if int(ex_prev) >= int(ex_curr):
+# =========================
+# VALIDAÇÃO: EXERCÍCIO ANTERIOR < EXERCÍCIO ATUAL
+# =========================
+if ex_prev and ex_curr and int(ex_prev) >= int(ex_curr):
     st.error(
         "O exercício anterior deve ser menor que o exercício atual. "
         "Ajuste os exercícios para continuar a análise."
     )
+    st.stop()
+
+# =========================
+# BOTÃO CONSULTAR
+# =========================
+consultar = st.button("🔍 Consultar")
+
+if not consultar:
     st.stop()
 
 if not consultar:
@@ -354,5 +389,6 @@ if "curr" in st.session_state and st.session_state["curr"] is not None:
 else:
     # Caso não exista curr, apenas mostrar a mensagem
     st.warning("Favor entrar em contato com a Diretoria de Planejamento Orçamentário.")
+
 
 
